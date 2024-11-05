@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { BarCodeScanner } from 'expo-barcode-scanner';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 
 const { width, height } = Dimensions.get('window');
-const CAMERA_SIZE = Math.min(width*1.2 , height*0.5); 
+const CAMERA_SIZE = Math.min(width * 1.2, height * 0.5);
 
 const ScanScreen = ({ navigation }) => {
   const [hasPermission, setHasPermission] = useState(null);
-  const [facing, setFacing] = useState(BarCodeScanner.Constants.Type.back);
   const [scanLineAnimation] = useState(new Animated.Value(0));
 
   useEffect(() => {
@@ -55,12 +55,12 @@ const ScanScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Scan your QR Code</Text>
+      <Text style={styles.title}>Scan your QR Code </Text>
       <View style={styles.cameraContainer}>
         <BarCodeScanner
           onBarCodeScanned={handleBarCodeScanned}
           style={StyleSheet.absoluteFillObject}
-          type={facing}
+          type={BarCodeScanner.Constants.Type.back}
         />
         <View style={styles.scannerOverlay}>
           <View style={styles.scannerCorners}>
@@ -87,15 +87,33 @@ const ScanScreen = ({ navigation }) => {
         </View>
       </View>
       <View style={styles.bottomContainer}>
-        <Button title="Scan QR Code" onPress={() => {}} style={styles.button} />
-        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.vendorText}>Are you a vendor?</Text>
+        <Button title="Scan QR Code" onPress={() => { }} style={styles.button} />
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              const token = await AsyncStorage.getItem('token');
+
+              if (token) {
+                const vendorData = await AsyncStorage.getItem('vendorData');
+                navigation.navigate('VendorDashboard', { vendorData: JSON.parse(vendorData) });
+              } else {
+                navigation.navigate('Login');
+              }
+            } catch (error) {
+              console.error("Error checking user authentication:", error);
+              navigation.navigate('Login'); 
+            }
+          }}
+        >
+          <Text style={styles.vendorText}>Are you a vendor? </Text>
         </TouchableOpacity>
+
       </View>
     </View>
   );
 };
 
+// Define your styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,

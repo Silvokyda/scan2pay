@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Button from '../components/Button';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -50,15 +50,19 @@ const PaymentScreen = ({ route }) => {
     <View style={styles.container}>
       <Text style={styles.title}>Payment Screen</Text>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Receiving Account</Text>
+        <Text style={styles.cardTitle}>Paying to: </Text>
         <Text style={styles.accountName}>{qrData.accountName}</Text>
-        <Text style={styles.accountNumber}>{qrData.accountNumber}</Text>
       </View>
       <View style={styles.amountContainer}>
         <Text style={styles.amountLabel}>Select Amount</Text>
         <View style={styles.amountBox}>
           <Text style={styles.currency}>KES</Text>
-          <Text style={styles.amount}>{amount}</Text>
+          <TextInput
+            style={styles.amountInput}
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={setAmount}
+          />
         </View>
       </View>
       <Button title="Pay" onPress={handlePayment} style={styles.button} />
@@ -109,8 +113,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
   },
-  accountNumber: {
-    color: 'white',
+  accountName: {
     fontSize: 18,
     fontWeight: 'bold',
     marginTop: 5,
@@ -135,9 +138,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginRight: 5,
   },
-  amount: {
+  amountInput: {
     fontSize: 18,
     fontWeight: 'bold',
+    flex: 1,
   },
   button: {
     marginTop: 20,
@@ -157,7 +161,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2
+      height: 2,
     },
     shadowOpacity: 0.25,
     shadowRadius: 4,

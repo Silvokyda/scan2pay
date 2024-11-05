@@ -1,66 +1,209 @@
 from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
+from datetime import datetime, timezone, timedelta
+from functools import wraps
+import os
 from dotenv import load_dotenv
-from mpesa import MpesaExpress
+import random
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('APP_SECRET')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize the MpesaExpress instance
-mpesa = MpesaExpress()
+# Configure the database connection
+db_host = os.getenv('DB_HOST')
+db_name = os.getenv('DB_NAME')
+db_user = os.getenv('DB_USER')
+db_password = os.getenv('DB_PASSWORD')
+db_port = os.getenv('DB_PORT', 3306)
 
-@app.route('/stk-push', methods=['POST'])
-def stk_push():
-    """Endpoint for initiating STK Push."""
+app.config['SQLALCHEMY_DATABASE_URI'] = (
+    f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+)
+
+db = SQLAlchemy(app)
+
+# Vendor Model
+class Vendor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    business_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    phone_number = db.Column(db.String(15), unique=True, nullable=False)
+    business_type = db.Column(db.String(50))
+    registration_date = db.Column(db.DateTime, default=datetime.utcnow)
+    is_verified = db.Column(db.Boolean, default=False)
+    balance = db.Column(db.Float, default=0.0)
+    business_number = db.Column(db.String(12), unique=True) 
+    full_name = db.Column(db.String(100), nullable=False)
+    id_number = db.Column(db.String(20), nullable=False)
+
+# Transaction Model
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    vendor_id = db.Column(db.Integer, db.ForeignKey('vendor.id'), nullable=False)
+    type = db.Column(db.String(10), nullable=False) 
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    customer = db.Column(db.String(100), nullable=False)
+
+    vendor = db.relationship('Vendor', backref=db.backref('transactions', lazy=True))
+
+# Token decorator
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        if not token:
+            return jsonify({'error': 'Token is missing'}), 401
+        
+        try:
+            token = token.split(' ')[1]
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+            current_vendor = Vendor.query.get(data['vendor_id'])
+        except:
+            return jsonify({'error': 'Invalid token'}), 401
+            
+        return f(current_vendor, *args, **kwargs)
+    return decorated
+
+# Database connection check
+def check_database_connection():
+    try:
+        db.session.execute('SELECT 1')
+        print("Database connection successful!")
+    except Exception as e:
+        print(f"Database connection failed: {e}")
+        exit(1)
+
+# Autogenerate business number
+def generate_business_number():
+    return str(random.randint(1000000000, 9999999999))
+
+# Routes
+@app.route('/vendor/register', methods=['POST'])
+def register():
     data = request.get_json()
+    print(data)
+    required_fields = ['business_name', 'email', 'password', 'phone_number', 'business_type']
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+        
+    if Vendor.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already registered'}), 400
+        
+    if Vendor.query.filter_by(phone_number=data['phone_number']).first():
+        return jsonify({'error': 'Phone number already registered'}), 400
+        
+    try:
+        vendor = Vendor(
+            business_name=data['business_name'],
+            email=data['email'],
+            password_hash=generate_password_hash(data['password']),
+            phone_number=data['phone_number'],
+            business_type=data['business_type'],
+            business_number=generate_business_number(),
+            id_number=data['id_number'],
+            full_name=data['full_name']
+        )
+        db.session.add(vendor)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Registration successful'
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/vendor/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'error': 'Missing email or password'}), 400
+
+    vendor = Vendor.query.filter_by(email=data['email']).first()
     
-    # Extract data from the request
+    if not vendor:
+        return jsonify({'error': 'Email not found'}), 401 
+
+    if not check_password_hash(vendor.password_hash, data['password']):
+        return jsonify({'error': 'Incorrect password'}), 401
+
+    token = jwt.encode({
+        'vendor_id': vendor.id,
+        'exp': datetime.now(timezone.utc) + timedelta(days=1)  
+    }, app.config['SECRET_KEY'])
+
+    return jsonify({
+        'success': True,
+        'token': token,
+        'vendor': {
+            'id': vendor.id,
+            'vendorName': vendor.full_name,
+            'accountName': vendor.business_name,
+            'email': vendor.email,
+            'balance': vendor.balance,
+            'is_verified': vendor.is_verified,
+            'accountNumber': vendor.business_number
+        }
+    }), 200
+
+
+# Pay route
+@app.route('/pay', methods=['POST'])
+@token_required
+def pay(current_vendor):
+    data = request.get_json()
     amount = data.get('amount')
-    phone_number = data.get('phone_number')
-    callback_url = data.get('callback_url')
-    reference_code = data.get('reference_code')
-    description = data.get('description')
-
-    # Validate input data
-    if not all([amount, phone_number, callback_url, reference_code, description]):
-        return jsonify({"error": "Missing required fields"}), 400
+    customer = data.get('customer', 'Unknown Customer')
+    
+    if not amount:
+        return jsonify({'error': 'Amount is required'}), 400
 
     try:
-        response = mpesa.stk_push(
-            business_shortcode=os.getenv("BUSINESS_SHORTCODE"),
-            passcode=os.getenv("PASSCODE"),
+        transaction = Transaction(
+            vendor_id=current_vendor.id,
+            type='in',
             amount=amount,
-            callback_url=callback_url,
-            reference_code=reference_code,
-            phone_number=phone_number,
-            description=description
+            customer=customer
         )
-        return jsonify(response), 200
+        db.session.add(transaction)
+        
+        current_vendor.balance += amount
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Payment successful',
+            'new_balance': current_vendor.balance
+        }), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/query', methods=['POST'])
-def query():
-    """Endpoint for querying the status of an STK Push."""
-    data = request.get_json()
-    
-    # Extract data from the request
-    checkout_request_id = data.get('checkout_request_id')
-    
-    # Validate input data
-    if not checkout_request_id:
-        return jsonify({"error": "Missing checkout_request_id"}), 400
+# Transactions Route
+@app.route('/transactions', methods=['GET'])
+@token_required
+def get_transactions(current_vendor):
+    transactions = Transaction.query.filter_by(vendor_id=current_vendor.id).all()
+    result = [{
+        'id': transaction.id,
+        'type': transaction.type,
+        'amount': transaction.amount,
+        'date': transaction.date.isoformat(),
+        'customer': transaction.customer
+    } for transaction in transactions]
 
-    try:
-        response = mpesa.query(
-            business_shortcode=os.getenv("BUSINESS_SHORTCODE"),
-            checkout_request_id=checkout_request_id,
-            passcode=os.getenv("PASSCODE")
-        )
-        return jsonify(response), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify(result), 200
 
 if __name__ == '__main__':
+    with app.app_context():
+        check_database_connection()
+        db.create_all()
+        
     app.run(debug=True)

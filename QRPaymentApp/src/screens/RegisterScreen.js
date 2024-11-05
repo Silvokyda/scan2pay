@@ -3,40 +3,56 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, SafeAreaView, Keyb
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import { Picker } from '@react-native-picker/picker';
+import { AppUrl } from '../../App';
+import axios from 'axios';
 
 const RegisterScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [phone, setPhone] = useState('254'); // Default business phone number
-  const [businessName, setBusinessName] = useState(''); // Business name
-  const [fullName, setFullName] = useState(''); // Full name
-  const [businessType, setBusinessType] = useState(''); // Business type
-  const [idNumber, setIdNumber] = useState(''); // ID number
+  const [phone, setPhone] = useState('254');
+  const [businessName, setBusinessName] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [businessType, setBusinessType] = useState('');
+  const [idNumber, setIdNumber] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (password !== confirmPassword) {
       alert("Passwords don't match");
       return;
     }
-    console.log(`Registering with ${email}, ${phone}, ${businessName}, ${fullName}, ${businessType}, ID: ${idNumber} and password`);
-    navigation.navigate('Login');
+
+    try {
+      const response = await axios.post(`${AppUrl}/vendor/register`, {
+        business_name: businessName,
+        email,
+        password,
+        phone_number: phone,            
+        business_type: businessType,   
+        full_name: fullName,       
+        id_number: idNumber       
+      });
+      if (response.data.success) {
+        console.log('Registration successful');
+        navigation.navigate('Login');
+      } else {
+        alert('Registration failed: ' + response.data.message);
+      }
+    } catch (error) {
+      console.error('Error registering:', error);
+      alert('Error registering, please try again.');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardAvoidingView}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoidingView}>
         <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
 
-        <ScrollView 
-          contentContainerStyle={styles.scrollViewContent}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={styles.scrollViewContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Vendor Registration</Text>
 
           {/* Full Name */}
@@ -48,6 +64,19 @@ const RegisterScreen = ({ navigation }) => {
               placeholderTextColor="#888"
               value={fullName}
               onChangeText={setFullName}
+            />
+          </View>
+
+          {/* Email */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={24} color="#888" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#888"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
             />
           </View>
 
@@ -73,7 +102,7 @@ const RegisterScreen = ({ navigation }) => {
               keyboardType="phone-pad"
               value={phone}
               onChangeText={setPhone}
-              maxLength={13} 
+              maxLength={13}
             />
           </View>
 
@@ -103,7 +132,7 @@ const RegisterScreen = ({ navigation }) => {
               placeholderTextColor="#888"
               value={idNumber}
               onChangeText={setIdNumber}
-              keyboardType="phone-pad"
+              keyboardType="numeric"
             />
           </View>
 
@@ -114,10 +143,13 @@ const RegisterScreen = ({ navigation }) => {
               style={styles.input}
               placeholder="Password"
               placeholderTextColor="#888"
-              secureTextEntry
+              secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
             />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={24} color="#888" />
+            </TouchableOpacity>
           </View>
 
           {/* Confirm Password */}
@@ -127,7 +159,7 @@ const RegisterScreen = ({ navigation }) => {
               style={styles.input}
               placeholder="Confirm Password"
               placeholderTextColor="#888"
-              secureTextEntry
+              secureTextEntry={!showPassword}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
             />
@@ -153,7 +185,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 80, 
+    paddingTop: 80,
     paddingBottom: 40,
   },
   title: {
