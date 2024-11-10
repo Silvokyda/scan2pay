@@ -8,8 +8,24 @@ import os
 from dotenv import load_dotenv
 import random
 
+# mpesa service
+from mpesa import MpesaExpress
+
 # Load environment variables
 load_dotenv()
+
+# Initialize M-Pesa Express
+mpesa = MpesaExpress(
+    env="sandbox", 
+    sandbox_url="https://sandbox.safaricom.co.ke",
+    live_url="https://api.safaricom.co.ke"
+)
+
+# M-Pesa configuration
+BUSINESS_SHORTCODE = "174379" 
+PASSKEY = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"  
+CALLBACK_URL = "https://37b8-102-219-210-201.ngrok-free.app/mpesa/callback" 
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('APP_SECRET')
@@ -51,6 +67,7 @@ class Transaction(db.Model):
     amount = db.Column(db.Float, nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
     customer = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(20), default='pending')
 
     vendor = db.relationship('Vendor', backref=db.backref('transactions', lazy=True))
 
@@ -155,35 +172,95 @@ def login():
     }), 200
 
 
-# Pay route
 @app.route('/pay', methods=['POST'])
-@token_required
-def pay(current_vendor):
+def pay():
     data = request.get_json()
     amount = data.get('amount')
+    phone_number = data.get('phone_number')  
     customer = data.get('customer', 'Unknown Customer')
-    
-    if not amount:
-        return jsonify({'error': 'Amount is required'}), 400
+    vendor = data.get('account_number')
+
+    if not amount or not phone_number:
+        return jsonify({'error': 'Amount and phone number are required'}), 400
 
     try:
-        transaction = Transaction(
-            vendor_id=current_vendor.id,
-            type='in',
-            amount=amount,
-            customer=customer
+        # Initiate STK Push
+        stk_push_response = mpesa.stk_push(
+            business_shortcode=BUSINESS_SHORTCODE,
+            passcode=PASSKEY,
+            amount=int(amount),
+            callback_url=CALLBACK_URL,
+            reference_code=str(vendor),
+            phone_number=phone_number,
+            description=f"Payment to {vendor}"
         )
-        db.session.add(transaction)
-        
-        current_vendor.balance += amount
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Payment successful',
-            'new_balance': current_vendor.balance
-        }), 200
+
+        if 'ResponseCode' in stk_push_response and stk_push_response['ResponseCode'] == '0':
+            # STK push initiated successfully
+            checkout_request_id = stk_push_response['CheckoutRequestID']
+            
+            # Save pending transaction
+            transaction = Transaction(
+                vendor_id=vendor,
+                type='in',
+                amount=amount,
+                customer=customer,
+                mpesa_checkout_request_id=checkout_request_id,
+                status='pending'
+            )
+            
+            db.session.add(transaction)
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'STK Push sent successfully',
+                'checkout_request_id': checkout_request_id
+            }), 200
+        else:
+            return jsonify({
+                'error': 'Failed to initiate payment',
+                'details': stk_push_response
+            }), 400
+
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# Callback route to handle M-Pesa responses
+@app.route('/mpesa/callback', methods=['POST'])
+def mpesa_callback():
+    data = request.get_json()
+    
+    try:
+        # Extract relevant information from callback
+        result_code = data['Body']['stkCallback']['ResultCode']
+        checkout_request_id = data['Body']['stkCallback']['CheckoutRequestID']
+
+        # Find the pending transaction
+        transaction = Transaction.query.filter_by(
+            mpesa_checkout_request_id=checkout_request_id
+        ).first()
+
+        if transaction and result_code == 0:
+            # Payment successful
+            transaction.status = 'completed'
+            
+            # Update vendor balance
+            vendor = transaction.vendor
+            vendor.balance += transaction.amount
+            
+            db.session.commit()
+            
+            return jsonify({'message': 'Success'}), 200
+        else:
+            # Payment failed
+            if transaction:
+                transaction.status = 'failed'
+                db.session.commit()
+            
+            return jsonify({'message': 'Failed'}), 200
+
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 # Transactions Route

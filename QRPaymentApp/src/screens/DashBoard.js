@@ -4,9 +4,23 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { AppUrl } from '../../App';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 import { VendorContext } from './VendorDashboard';
 
+export const logout = async (navigation) => {
+  try {
+    await AsyncStorage.clear();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  } catch (error) {
+    console.error('Error during logout:', error);
+  }
+};
+
 const Dashboard = () => {
+  const navigation = useNavigation();
   const vendorData = useContext(VendorContext);
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [activeTab, setActiveTab] = useState('in');
@@ -16,28 +30,41 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+
   useEffect(() => {
     fetchTransactions();
   }, []);
 
   const fetchTransactions = async () => {
     try {
+      // Retrieve the token from AsyncStorage
       const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('No token found');
+      }
+  
       const response = await axios.get(`${AppUrl}/transactions`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
+  
       setTransactions(response.data);
       setError(null);
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      setError('Failed to load transactions');
+
+      if (error.response && error.response.status === 401) {
+        setError('Authorization error: Please log in again');
+        logout(navigation);
+      } else {
+        setError('Failed to load transactions');
+      }
     } finally {
       setIsLoading(false);
     }
-  };
-
+  };  
+  
   const toggleBalance = () => {
     Animated.sequence([
       Animated.timing(fadeAnim, {

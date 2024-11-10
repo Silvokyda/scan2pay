@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { AppUrl } from '../../App';
+import axios from 'axios';
 
 const SuccessIcon = () => (
   <Svg height="100" width="100" viewBox="0 0 24 24">
@@ -22,21 +25,108 @@ const PaymentScreen = ({ route }) => {
   const [amount, setAmount] = useState('500');
   const [modalVisible, setModalVisible] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [showPhoneInput, setShowPhoneInput] = useState(true);
   const { qrData } = route.params;
   const navigation = useNavigation();
+
+  useEffect(() => {
+    loadSavedPhoneNumber();
+  }, []);
+
+  const loadSavedPhoneNumber = async () => {
+    try {
+      const savedPhone = await AsyncStorage.getItem('userPhoneNumber');
+      if (savedPhone) {
+        setPhoneNumber(savedPhone);
+        setShowPhoneInput(false);
+      }
+    } catch (error) {
+      console.error('Error loading saved phone number:', error);
+    }
+  };
+
+  const savePhoneNumber = async (number) => {
+    try {
+      await AsyncStorage.setItem('userPhoneNumber', number);
+    } catch (error) {
+      console.error('Error saving phone number:', error);
+    }
+  };
 
   if (!qrData || !qrData.accountName || !qrData.accountNumber) {
     Alert.alert('Error', 'Invalid QR code data');
     return null;
   }
 
-  const handlePayment = () => {
-    // Simulating payment process
-    setTimeout(() => {
-      const success = Math.random() > 0.5; 
-      setPaymentSuccess(success);
+  const formatPhoneNumber = (number) => {
+    const cleaned = number.replace(/[^\d]/g, '');
+    if (cleaned.startsWith('0')) {
+      return `254${cleaned.substring(1)}`;
+    }
+    if (cleaned.startsWith('254')) {
+      return cleaned;
+    }
+    if (cleaned.length === 9) {
+      return `254${cleaned}`;
+    }
+    return cleaned;
+  };
+
+  const handlePayment = async () => {
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Please enter your phone number');
+      return;
+    }
+
+    if (!amount || isNaN(amount) || Number(amount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const formattedPhone = formatPhoneNumber(phoneNumber);
+      
+      // Save phone number if it's the first time
+      if (showPhoneInput) {
+        await savePhoneNumber(formattedPhone);
+        setShowPhoneInput(false);
+      }
+
+      const response = await axios.post(`${AppUrl}/pay`, {
+        amount: Number(amount),
+        phone_number: formattedPhone,
+        customer: qrData.accountName,
+        account_number: qrData.accountNumber
+      });
+
+      if (response.data.checkout_request_id) {
+        setPaymentSuccess(true);
+        setModalVisible(true);
+        Alert.alert(
+          'STK Push Sent',
+          'Please check your phone and enter M-Pesa PIN to complete payment'
+        );
+      } else {
+        throw new Error('Failed to initiate payment');
+      }
+    } catch (error) {
+      setPaymentSuccess(false);
       setModalVisible(true);
-    }, 2000);
+      Alert.alert(
+        'Payment Failed',
+        error.response?.data?.error || 'An error occurred while processing payment'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangeNumber = () => {
+    setShowPhoneInput(true);
   };
 
   const handleCloseModal = () => {
@@ -53,6 +143,30 @@ const PaymentScreen = ({ route }) => {
         <Text style={styles.cardTitle}>Paying to: </Text>
         <Text style={styles.accountName}>{qrData.accountName}</Text>
       </View>
+
+      {showPhoneInput ? (
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Phone Number</Text>
+          <TextInput
+            style={styles.phoneInput}
+            keyboardType="phone-pad"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            placeholder="254XXX..."
+            placeholderTextColor="#666"
+          />
+        </View>
+      ) : (
+        <View style={styles.savedPhoneContainer}>
+          <Text style={styles.savedPhoneText}>Phone Number: {phoneNumber}</Text>
+          <Button
+            title="Change Number"
+            onPress={handleChangeNumber}
+            style={styles.changeNumberButton}
+          />
+        </View>
+      )}
+
       <View style={styles.amountContainer}>
         <Text style={styles.amountLabel}>Select Amount</Text>
         <View style={styles.amountBox}>
@@ -65,7 +179,21 @@ const PaymentScreen = ({ route }) => {
           />
         </View>
       </View>
-      <Button title="Pay" onPress={handlePayment} style={styles.button} />
+
+      <Button 
+        title={loading ? "Processing..." : "Pay"} 
+        onPress={handlePayment} 
+        style={styles.button}
+        disabled={loading}
+      />
+
+      {loading && (
+        <ActivityIndicator 
+          size="large" 
+          color="#2FC56D" 
+          style={styles.loader}
+        />
+      )}
 
       <Modal
         animationType="fade"
@@ -77,7 +205,7 @@ const PaymentScreen = ({ route }) => {
           <View style={styles.modalView}>
             {paymentSuccess ? <SuccessIcon /> : <FailureIcon />}
             <Text style={styles.modalText}>
-              {paymentSuccess ? 'Payment Successful!' : 'Payment Failed!'}
+              {paymentSuccess ? 'STK Push Sent!' : 'Payment Failed!'}
             </Text>
             <Button
               title="Close"
@@ -175,6 +303,39 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     marginTop: 10,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    color: 'white',
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  phoneInput: {
+    backgroundColor: 'white',
+    borderRadius: 5,
+    padding: 10,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  loader: {
+    marginTop: 20,
+  },
+  savedPhoneContainer: {
+    backgroundColor: '#2FC56D',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 20,
+  },
+  savedPhoneText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  changeNumberButton: {
+    marginTop: 10,
+    backgroundColor: '#1E1E1E',
   },
 });
 

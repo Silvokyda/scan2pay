@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Animated } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
+import { logout } from './DashBoard';
 import { createContext } from 'react';
 
 // Import your existing VendorManagementScreen component
@@ -11,7 +13,9 @@ import Transactions from './Transactions';
 const APP_VERSION = "1.0.0";
 export const VendorContext = createContext(null);
 
+
 const VendorDashboard = ({ route }) => {
+  const navigation = useNavigation();
   const vendorData = route.params?.vendorData;
   const [activeTab, setActiveTab] = useState('home');
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -34,7 +38,7 @@ const VendorDashboard = ({ route }) => {
         { text: "Cancel", style: "cancel" },
         { 
           text: "Logout", 
-          onPress: () => console.log("Logging out..."),
+          onPress: () => logout(navigation),
           style: "destructive"
         }
       ]

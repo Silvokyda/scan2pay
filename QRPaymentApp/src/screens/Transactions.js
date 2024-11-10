@@ -8,77 +8,49 @@ import {
   ActivityIndicator 
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+
+import { AppUrl } from '../../App';
+import { logout } from './DashBoard';
 
 const Transactions = () => {
   const [groupedTransactions, setGroupedTransactions] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  // Sample transaction data
-  const mockTransactions = [
-    {
-      id: '1',
-      type: 'in',
-      amount: 2500,
-      date: '2024-03-04T14:30:00',
-      customer: 'John Doe'
-    },
-    {
-      id: '2',
-      type: 'in',
-      amount: 3700,
-      date: '2024-03-03T11:20:00',
-      customer: 'Jane Smith'
-    },
-    {
-      id: '3',
-      type: 'out',
-      amount: 1500,
-      date: '2024-02-28T16:45:00',
-      customer: 'Withdrawal'
-    },
-    {
-      id: '4',
-      type: 'in',
-      amount: 2500,
-      date: '2024-11-03T14:30:00',
-      customer: 'John Doe'
-    },
-    {
-      id: '5',
-      type: 'in',
-      amount: 2500,
-      date: '2024-11-02T14:30:00',
-      customer: 'John Doe'
-    },
-    {
-      id: '6',
-      type: 'in',
-      amount: 2500,
-      date: '2024-11-01T14:30:00',
-      customer: 'John Doe'
-    },
-    {
-      id: '7',
-      type: 'in',
-      amount: 2500,
-      date: '2024-11-04T14:30:00',
-      customer: 'John Doe'
-    },
-    // Add more transactions...
-  ];
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigation = useNavigation();
 
   useEffect(() => {
-    loadTransactions();
+    fetchTransactions();
   }, []);
 
-  const loadTransactions = () => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      const grouped = groupTransactionsByDate(mockTransactions);
+  const fetchTransactions = async () => {
+    try {
+      // Retrieve the token from AsyncStorage
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('No token found');
+
+      const response = await axios.get(`${AppUrl}/transactions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Group transactions by date and set in state
+      const grouped = groupTransactionsByDate(response.data);
       setGroupedTransactions(grouped);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+
+      if (error.response && error.response.status === 401) {
+        setError('Authorization error: Please log in again');
+        logout(navigation); // Pass navigation to logout in case of 401
+      } else {
+        setError('Failed to load transactions');
+      }
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const groupTransactionsByDate = (transactions) => {
@@ -130,6 +102,15 @@ const Transactions = () => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const EmptyState = () => (
+    <View style={styles.emptyState}>
+      <Icon name="account-balance-wallet" size={50} color="#ccc" />
+      <Text style={styles.emptyStateText}>No transactions yet</Text>
+      <Text style={styles.emptyStateSubText}>
+        Your transactions will appear here </Text>
+    </View>
+  );
+
   const renderTransactionItem = ({ item }) => (
     <View style={styles.transactionCard}>
       <View style={styles.transactionLeft}>
@@ -168,19 +149,21 @@ const Transactions = () => {
         </TouchableOpacity>
       </View>
 
-      <SectionList
-        sections={groupedTransactions}
-        renderItem={renderTransactionItem}
-        renderSectionHeader={renderSectionHeader}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-        stickySectionHeadersEnabled={true}
-      />
+      {error && <Text style={styles.errorText}>{error}</Text>}
 
-      {loading && (
-        <View style={styles.loader}>
-          <ActivityIndicator size="small" color="#4CAF50" />
-        </View>
+      {loading ? (
+        <ActivityIndicator size="large" color="#4CAF50" />
+      ) : groupedTransactions.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <SectionList
+          sections={groupedTransactions}
+          renderItem={renderTransactionItem}
+          renderSectionHeader={renderSectionHeader}
+          keyExtractor={item => item.id.toString()}
+          contentContainerStyle={styles.listContainer}
+          stickySectionHeadersEnabled
+        />
       )}
     </View>
   );
@@ -260,6 +243,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    marginTop: 20,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    color: '#333',
+    marginTop: 10,
+    fontWeight: '500',
+  },
+  emptyStateSubText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
   },
 });
 
