@@ -11,7 +11,7 @@ import VendorManagementScreen from './src/screens/VendorManagementScreen';
 import VendorDashboard from './src/screens/VendorDashboard';
 
 const Stack = createStackNavigator();
-export const AppUrl = 'https://9cc5-102-219-210-201.ngrok-free.app';
+export const AppUrl = 'http://192.168.244.235:5000/';
 
 export default function App() {
   return (

@@ -6,8 +6,10 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
+import { useNavigation } from '@react-navigation/native';
 
-const VendorManagementScreen = () => {
+const VendorManagementScreen = ()=> {
+  const navigation = useNavigation(); 
   const [accountName, setAccountName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const viewShotRef = useRef();
@@ -18,8 +20,8 @@ const VendorManagementScreen = () => {
         const vendorData = await AsyncStorage.getItem('vendorData');
         if (vendorData) {
           const parsedData = JSON.parse(vendorData);
-          setAccountName(parsedData.accountName);
-          setAccountNumber(parsedData.accountNumber);
+          setAccountName(parsedData.business_name);
+          setAccountNumber(parsedData.business_number);
         }
       } catch (error) {
         console.error('Error fetching vendor data:', error);
@@ -58,6 +60,10 @@ const VendorManagementScreen = () => {
     }
   };
 
+  const handleScanQR = async () => {
+    navigation.navigate('Scan');
+  };
+
   const handleShareQR = async () => {
     if (!viewShotRef.current) {
       Alert.alert('Error', 'QR Code not generated yet');
@@ -92,6 +98,7 @@ const VendorManagementScreen = () => {
         </View>
       </ViewShot>
       <Button title="Share QR Code" onPress={handleShareQR} style={styles.button} />
+      <Button title="Scan QR Code" onPress={handleScanQR} style={styles.button} />
     </View>
   );
 };

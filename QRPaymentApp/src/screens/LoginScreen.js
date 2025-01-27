@@ -34,7 +34,6 @@ const LoginScreen = ({ navigation }) => {
         email,
         password,
       });
-      console.log('response', response.data);
   
       if (response.data.success) {
         await AsyncStorage.setItem('vendorData', JSON.stringify(response.data.vendor));
@@ -44,12 +43,31 @@ const LoginScreen = ({ navigation }) => {
         alert('Login failed: ' + response.data);
       }
     } catch (error) {
+      if (error.response) {
+        // Handle backend errors based on the status code
+        if (error.response.status === 401) {
+          // Specific 401 error from the backend
+          if (error.response.data.error === 'Invalid email or password') {
+            alert('Invalid email or password. Please check your credentials and try again.');
+          } else {
+            alert('Unauthorized access. Please check your credentials.');
+          }
+        } else {
+          // Other backend errors
+          alert(`Error: ${error.response.data.error || 'Something went wrong.'}`);
+        }
+      } else if (error.request) {
+        // Handle network errors or no response from the server
+        alert('Network error. Please check your internet connection and try again.');
+      } else {
+        // Handle other unexpected errors
+        alert(`An error occurred: ${error.message}`);
+      }
       console.error('Error logging in:', error);
-      alert('Error logging in, please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  };  
 
   return (
     <SafeAreaView style={styles.container}>

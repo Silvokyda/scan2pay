@@ -1,4 +1,4 @@
-from auth import MpesaBase
+from config.auth import MpesaBase
 import base64
 import requests
 import datetime
