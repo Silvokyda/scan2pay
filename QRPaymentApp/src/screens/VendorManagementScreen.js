@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet, Alert, Text } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -7,11 +7,14 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 import { useNavigation } from '@react-navigation/native';
+import CryptoJS from 'crypto-js';
+import * as Random from 'expo-random'; 
 
-const VendorManagementScreen = ()=> {
-  const navigation = useNavigation(); 
+const VendorManagementScreen = () => {
+  const navigation = useNavigation();
   const [accountName, setAccountName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [encryptedData, setEncryptedData] = useState('');
   const viewShotRef = useRef();
 
   useEffect(() => {
@@ -32,10 +35,73 @@ const VendorManagementScreen = ()=> {
     getVendorData();
   }, []);
 
-  const qrValue = JSON.stringify({
-    accountName,
-    accountNumber,
-  });
+  // Key generation function
+  const generateKey = (password) => {
+    // Create a consistent 32-byte key (256 bits)
+    const key = CryptoJS.PBKDF2(password, 'salt', {
+      keySize: 256/32,
+      iterations: 1000
+    });
+    return key;
+  };
+  
+  const encryptData = async (data, password) => {
+    try {
+      const key = generateKey(password);
+      
+      // Generate a random IV
+      const ivBytes = await Random.getRandomBytesAsync(16);
+      const iv = CryptoJS.lib.WordArray.create(ivBytes);
+      
+      // Convert data to WordArray
+      const dataWordArray = CryptoJS.enc.Utf8.parse(data);
+      
+      // Encrypt the data
+      const encrypted = CryptoJS.AES.encrypt(dataWordArray, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
+      
+      // Convert IV to hex string
+      const ivHex = CryptoJS.enc.Hex.stringify(iv);
+      
+      // Create final string
+      const result = `${ivHex}:${encrypted.toString()}`;
+      console.log('Encryption details:', {
+        originalData: data,
+        ivHex: ivHex,
+        encrypted: encrypted.toString()
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('Encryption error:', error);
+      throw error;
+    }
+  };
+  
+  // In your useEffect:
+  useEffect(() => {
+    const encryptQRValue = async () => {
+      if (accountName && accountNumber) {
+        try {
+          const dataToEncrypt = JSON.stringify({
+            accountName,
+            accountNumber,
+          });
+          const password = '4rever2moro';
+          const encrypted = await encryptData(dataToEncrypt, password);
+          setEncryptedData(encrypted);
+        } catch (error) {
+          console.error('Error in encryptQRValue:', error);
+          Alert.alert('Error', 'Failed to encrypt QR data');
+        }
+      }
+    };
+  
+    encryptQRValue();
+  }, [accountName, accountNumber]);
 
   const handleSaveQR = async () => {
     if (!viewShotRef.current) {
@@ -60,7 +126,7 @@ const VendorManagementScreen = ()=> {
     }
   };
 
-  const handleScanQR = async () => {
+  const handleScanQR = () => {
     navigation.navigate('Scan');
   };
 
@@ -94,7 +160,11 @@ const VendorManagementScreen = ()=> {
     <View style={styles.container}>
       <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }}>
         <View style={styles.qrContainer}>
-          <QRCode value={qrValue} size={200} color="black" backgroundColor="white" />
+          {encryptedData ? (
+            <QRCode value={encryptedData} size={200} color="black" backgroundColor="white" />
+          ) : (
+            <Text style={{ color: 'red' }}>QR Code is not yet encrypted</Text>
+          )}
         </View>
       </ViewShot>
       <Button title="Share QR Code" onPress={handleShareQR} style={styles.button} />

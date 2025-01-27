@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity, Alert, Dime
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
+import CryptoJS from 'crypto-js';
 
 const { width, height } = Dimensions.get('window');
 const CAMERA_SIZE = Math.min(width * 1.2, height * 0.5);
@@ -30,14 +31,77 @@ const ScanScreen = ({ navigation }) => {
     ).start();
   }, []);
 
-  const handleBarCodeScanned = ({ data }) => {
+  // Key generation function
+  const generateKey = (password) => {
+    // Create a consistent 32-byte key (256 bits)
+    const key = CryptoJS.PBKDF2(password, 'salt', {
+      keySize: 256/32,
+      iterations: 1000
+    });
+    return key;
+  };
+  
+  const decryptData = (encryptedData, password) => {
     try {
-      const parsedData = JSON.parse(data);
-      console.log('Parsed QR code data:', parsedData);
-      navigation.navigate('Payment', { qrData: parsedData });
+      const key = generateKey(password);
+      const [ivHex, encryptedText] = encryptedData.split(':');
+      
+      if (!ivHex || !encryptedText) {
+        throw new Error('Invalid encrypted data format');
+      }
+  
+      // Convert IV from hex to WordArray
+      const iv = CryptoJS.enc.Hex.parse(ivHex);
+      
+      console.log('Decryption attempt with:', {
+        ivHex,
+        encryptedText,
+        keyHex: CryptoJS.enc.Hex.stringify(key)
+      });
+  
+      // Decrypt
+      const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
+  
+      // Convert to UTF8 string
+      const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+      
+      if (!decryptedText) {
+        throw new Error('Decryption produced empty result');
+      }
+  
+      console.log('Decrypted text:', decryptedText);
+      
+      // Parse the JSON string
+      return JSON.parse(decryptedText);
     } catch (error) {
-      console.error('Error parsing QR code data:', error);
-      Alert.alert('Error', 'Invalid QR code format');
+      console.error('Decryption error:', error);
+      throw error;
+    }
+  };
+  
+  const handleBarCodeScanned = async ({ data }) => {
+    try {
+      console.log('Raw QR data:', data);
+      
+      const cleanData = data.trim();
+      
+      const password = '4rever2moro';
+      const decryptedData = decryptData(cleanData, password);
+      
+      console.log('Successfully decrypted data:', decryptedData);
+      
+      if (!decryptedData.accountName || !decryptedData.accountNumber) {
+        throw new Error('Invalid QR code data structure');
+      }
+      
+      navigation.navigate('Payment', { qrData: decryptedData });
+    } catch (error) {
+      console.error('QR processing error:', error);
+      Alert.alert('Error', `Failed to process QR code: ${error.message}`);
     }
   };
 
@@ -107,7 +171,6 @@ const ScanScreen = ({ navigation }) => {
         >
           <Text style={styles.vendorText}>Are you a vendor? </Text>
         </TouchableOpacity>
-
       </View>
     </View>
   );
