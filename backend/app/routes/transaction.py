@@ -16,4 +16,7 @@ def get_transactions(current_vendor):
         'status': transaction.status
     } for transaction in transactions]
 
-    return jsonify(result), 200
+    return jsonify({
+        'balance': current_vendor.balance,  
+        'transactions': result
+    }), 200

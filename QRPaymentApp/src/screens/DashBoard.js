@@ -1,43 +1,41 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { AppUrl } from '../../App';
+import { AppUrl } from '../config/constants';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { VendorContext } from './VendorDashboard';
-
-export const logout = async (navigation) => {
-  try {
-    await AsyncStorage.clear();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
-  } catch (error) {
-    console.error('Error during logout:', error);
-  }
-};
 
 const Dashboard = () => {
   const navigation = useNavigation();
-  const vendorData = useContext(VendorContext);
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [activeTab, setActiveTab] = useState('in');
-  const [balance] = useState(vendorData?.balance || 0);
+  const [balance, setBalance] = useState(0);
+  const [vendorName, setVendorName] = useState('');
   const fadeAnim = new Animated.Value(1);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-
   useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('vendorData');
+        if (userData) {
+          const parsedData = JSON.parse(userData);
+          setVendorName(parsedData.business_name || '');
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+
+    loadUserData();
     fetchTransactions();
   }, []);
 
   const fetchTransactions = async () => {
     try {
-      // Retrieve the token from AsyncStorage
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         throw new Error('No token found');
@@ -48,23 +46,23 @@ const Dashboard = () => {
           Authorization: `Bearer ${token}`
         }
       });
-  
-      setTransactions(response.data);
+
+      // Set balance from response and transactions
+      setBalance(response.data.balance || 0);
+      setTransactions(response.data.transactions || []);
       setError(null);
     } catch (error) {
       console.error('Error fetching transactions:', error);
-
       if (error.response && error.response.status === 401) {
         setError('Authorization error: Please log in again');
-        logout(navigation);
       } else {
         setError('Failed to load transactions');
       }
     } finally {
       setIsLoading(false);
     }
-  };  
-  
+  };
+
   const toggleBalance = () => {
     Animated.sequence([
       Animated.timing(fadeAnim, {
@@ -95,7 +93,8 @@ const Dashboard = () => {
       <Icon name="account-balance-wallet" size={50} color="#ccc" />
       <Text style={styles.emptyStateText}>No transactions yet</Text>
       <Text style={styles.emptyStateSubText}>
-        Your transactions will appear here </Text>
+        Your transactions will appear here
+      </Text>
     </View>
   );
 
@@ -132,11 +131,21 @@ const Dashboard = () => {
     </View>
   );
 
+  const handleLogout = async () => {
+    await AsyncStorage.clear();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.greetingContainer}>
-        <Text style={styles.greeting}>{getGreeting()},</Text>
-        <Text style={styles.userName}> {vendorData?.vendorName?.split(' ')[0]}</Text>
+        <Text style={styles.greeting}>{getGreeting()}, {vendorName.split(' ')[0]}</Text>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <Icon name="logout" size={24} color="#FF4444" />
+        </TouchableOpacity>
       </View>
       <View style={styles.walletCard}>
         <View style={styles.walletHeader}>
@@ -156,7 +165,6 @@ const Dashboard = () => {
           Last updated: {new Date().toLocaleTimeString()}
         </Text>
       </View>
-
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'in' && styles.activeTab]}
@@ -185,7 +193,6 @@ const Dashboard = () => {
           </Text>
         </TouchableOpacity>
       </View>
-
       <View style={styles.transactionsList}>
         {isLoading ? (
           <ActivityIndicator size="large" color="#4CAF50" style={styles.loader} />
@@ -211,6 +218,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1E1E1E',
+  },
+  greetingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
   },
   walletCard: {
     backgroundColor: '#2A2A2A',
@@ -315,13 +328,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  greetingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
   greeting: {
     fontSize: 20,
     color: '#FFF',
@@ -354,10 +360,8 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 20,
   },
-  errorText: {
-    color: '#FF5454',
-    textAlign: 'center',
-    marginTop: 20,
+  logoutButton: {
+    padding: 8,
   },
 });
 

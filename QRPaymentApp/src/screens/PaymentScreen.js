@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 import Svg, { Path, Circle } from 'react-native-svg';
-import { AppUrl } from '../../App';
+import { AppUrl } from '../config/constants';
 import axios from 'axios';
 
 const SuccessIcon = () => (
@@ -189,7 +189,6 @@ const PaymentScreen = ({ route }) => {
 
       {loading && (
         <ActivityIndicator
-          size="large"
           color="#2FC56D"
           style={styles.loader}
         />

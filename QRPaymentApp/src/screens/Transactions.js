@@ -11,15 +11,15 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-
-import { AppUrl } from '../../App';
-import { logout } from './DashBoard';
+import { AppUrl } from '../config/constants';
+import { useAuth } from '../utils/Auth';
 
 const Transactions = () => {
   const [groupedTransactions, setGroupedTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigation = useNavigation();
+  const { logout } = useAuth();
 
   useEffect(() => {
     fetchTransactions();
@@ -35,8 +35,9 @@ const Transactions = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Group transactions by date and set in state
-      const grouped = groupTransactionsByDate(response.data);
+      // Get balance and group transactions by date
+      const { balance, transactions } = response.data;
+      const grouped = groupTransactionsByDate(transactions);
       setGroupedTransactions(grouped);
       setError(null);
     } catch (error) {
@@ -44,7 +45,7 @@ const Transactions = () => {
 
       if (error.response && error.response.status === 401) {
         setError('Authorization error: Please log in again');
-        logout(navigation); // Pass navigation to logout in case of 401
+        logout(navigation); // Use logout from Auth context
       } else {
         setError('Failed to load transactions');
       }
@@ -107,7 +108,8 @@ const Transactions = () => {
       <Icon name="account-balance-wallet" size={50} color="#ccc" />
       <Text style={styles.emptyStateText}>No transactions yet</Text>
       <Text style={styles.emptyStateSubText}>
-        Your transactions will appear here </Text>
+        Your transactions will appear here
+      </Text>
     </View>
   );
 
@@ -152,7 +154,7 @@ const Transactions = () => {
       {error && <Text style={styles.errorText}>{error}</Text>}
 
       {loading ? (
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator color="#4CAF50" />
       ) : groupedTransactions.length === 0 ? (
         <EmptyState />
       ) : (

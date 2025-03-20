@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 import { useNavigation } from '@react-navigation/native';
 import CryptoJS from 'crypto-js';
-import * as Random from 'expo-random'; 
+import * as Crypto from 'expo-crypto'; // Import from expo-crypto
 
 const VendorManagementScreen = () => {
   const navigation = useNavigation();
@@ -37,51 +37,44 @@ const VendorManagementScreen = () => {
 
   // Key generation function
   const generateKey = (password) => {
-    // Create a consistent 32-byte key (256 bits)
-    const key = CryptoJS.PBKDF2(password, 'salt', {
-      keySize: 256/32,
-      iterations: 1000
+    return CryptoJS.PBKDF2(password, 'salt', {
+      keySize: 256 / 32,
+      iterations: 1000,
     });
-    return key;
   };
-  
+
   const encryptData = async (data, password) => {
     try {
       const key = generateKey(password);
       
       // Generate a random IV
-      const ivBytes = await Random.getRandomBytesAsync(16);
+      const ivBytes = await Crypto.getRandomBytesAsync(16);
       const iv = CryptoJS.lib.WordArray.create(ivBytes);
-      
-      // Convert data to WordArray
+
       const dataWordArray = CryptoJS.enc.Utf8.parse(data);
-      
-      // Encrypt the data
+
       const encrypted = CryptoJS.AES.encrypt(dataWordArray, key, {
         iv: iv,
         mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
+        padding: CryptoJS.pad.Pkcs7,
       });
-      
-      // Convert IV to hex string
+
       const ivHex = CryptoJS.enc.Hex.stringify(iv);
-      
-      // Create final string
+
       const result = `${ivHex}:${encrypted.toString()}`;
-      console.log('Encryption details:', {
-        originalData: data,
-        ivHex: ivHex,
-        encrypted: encrypted.toString()
-      });
-      
+      // console.log('Encryption details:', {
+      //   originalData: data,
+      //   ivHex: ivHex,
+      //   encrypted: encrypted.toString(),
+      // });
+
       return result;
     } catch (error) {
       console.error('Encryption error:', error);
       throw error;
     }
   };
-  
-  // In your useEffect:
+
   useEffect(() => {
     const encryptQRValue = async () => {
       if (accountName && accountNumber) {
@@ -99,7 +92,7 @@ const VendorManagementScreen = () => {
         }
       }
     };
-  
+
     encryptQRValue();
   }, [accountName, accountNumber]);
 
@@ -108,23 +101,23 @@ const VendorManagementScreen = () => {
       console.log('Error: viewShotRef is not available');
       return null;
     }
-
+  
     try {
-      const uri = await viewShotRef.current.capture();
+      const uri = await viewShotRef.current.capture({ format: 'png', quality: 1.0 });
       const timestamp = new Date().getTime();
-      const fileUri = `${FileSystem.documentDirectory}qrcode_${timestamp}.png`;
-
-      await FileSystem.moveAsync({
-        from: uri,
-        to: fileUri,
-      });
-
+      const fileUri = `${FileSystem.documentDirectory}qrcode_${timestamp}.png`; 
+  
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  
+      await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+  
       return fileUri;
     } catch (error) {
       console.error('Error in handleSaveQR:', error);
       return null;
     }
   };
+    
 
   const handleScanQR = () => {
     navigation.navigate('Scan');
@@ -156,6 +149,18 @@ const VendorManagementScreen = () => {
     }
   };
 
+  const handlePayForSomeone = () => {
+    if (!accountName || !accountNumber) {
+      Alert.alert('Error', 'Account details are missing');
+      return;
+    }
+    navigation.navigate('AuthenticatedRoutes', {
+      screen: 'Payment',
+      params: { qrData: { accountName, accountNumber } },
+    });
+  };
+  
+
   return (
     <View style={styles.container}>
       <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }}>
@@ -169,6 +174,7 @@ const VendorManagementScreen = () => {
       </ViewShot>
       <Button title="Share QR Code" onPress={handleShareQR} style={styles.button} />
       <Button title="Scan QR Code" onPress={handleScanQR} style={styles.button} />
+      <Button title="Pay for Someone" onPress={handlePayForSomeone} style={styles.button} />
     </View>
   );
 };

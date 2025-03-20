@@ -13,7 +13,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
-import { AppUrl } from '../../App';
+import { AppUrl } from '../config/constants';
+import { useAuth } from '../utils/Auth';
 import axios from 'axios';
 
 const LoginScreen = ({ navigation }) => {
@@ -21,24 +22,34 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  const { login } = useAuth(); 
 
   const handleLogin = async () => {
     if (!email || !password) {
       alert('Please fill in all fields');
       return;
     }
-  
+
     setIsLoading(true);
     try {
       const response = await axios.post(`${AppUrl}/vendor/login`, {
         email,
         password,
       });
-  
+
       if (response.data.success) {
         await AsyncStorage.setItem('vendorData', JSON.stringify(response.data.vendor));
         await AsyncStorage.setItem('token', response.data.token);
-        navigation.navigate('VendorDashboard', { vendorData: response.data.vendor });
+
+        // Call login from context
+        await login(response.data.vendor, response.data.token);
+
+        // Navigate to the nested screen
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'AuthenticatedRoutes', params: { screen: 'VendorDashboard', vendorData: response.data.vendor } }],
+        });
       } else {
         alert('Login failed: ' + response.data);
       }
@@ -46,28 +57,20 @@ const LoginScreen = ({ navigation }) => {
       if (error.response) {
         // Handle backend errors based on the status code
         if (error.response.status === 401) {
-          // Specific 401 error from the backend
-          if (error.response.data.error === 'Invalid email or password') {
-            alert('Invalid email or password. Please check your credentials and try again.');
-          } else {
-            alert('Unauthorized access. Please check your credentials.');
-          }
+          alert('Invalid email or password. Please check your credentials and try again.');
         } else {
-          // Other backend errors
           alert(`Error: ${error.response.data.error || 'Something went wrong.'}`);
         }
       } else if (error.request) {
-        // Handle network errors or no response from the server
         alert('Network error. Please check your internet connection and try again.');
       } else {
-        // Handle other unexpected errors
         alert(`An error occurred: ${error.message}`);
       }
       console.error('Error logging in:', error);
     } finally {
       setIsLoading(false);
     }
-  };  
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -121,11 +124,7 @@ const LoginScreen = ({ navigation }) => {
             disabled={isLoading}
           >
             {isLoading && (
-              <ActivityIndicator 
-                size="small" 
-                color="white" 
-                style={styles.loader}
-              />
+              <ActivityIndicator size="small" color="white" style={styles.loader} />
             )}
           </Button>
 

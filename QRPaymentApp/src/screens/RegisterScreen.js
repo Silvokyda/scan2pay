@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, SafeAreaView, Keyb
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../components/Button';
 import { Picker } from '@react-native-picker/picker';
-import { AppUrl } from '../../App';
+import { AppUrl } from '../config/constants';
 import axios from 'axios';
 
 const RegisterScreen = ({ navigation }) => {
