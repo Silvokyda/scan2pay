@@ -20,4 +20,14 @@ class Config:
     # MPesa Config
     MPESA_BUSINESS_SHORTCODE = "174379"
     MPESA_PASSKEY = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
-    MPESA_CALLBACK_URL = "https://37b8-102-219-210-201.ngrok-free.app/mpesa/callback"
+    MPESA_CALLBACK_URL = "https://de5c-102-219-210-201.ngrok-free.app/mpesa/callback"
+
+    # Email Config
+    SMTP_SERVER = os.getenv('SMTP_SERVER')
+    SMTP_PORT = os.getenv('SMTP_PORT')
+    SMTP_USERNAME = os.getenv('SMTP_USERNAME')
+    SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+    FROM_EMAIL = os.getenv('FROM_EMAIL')
+
+    # Uploads
+    UPLOAD_FOLDER = 'uploads'

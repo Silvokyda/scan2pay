@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, TouchableOpacity,  StatusBar } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../components/Button';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { AppUrl } from '../config/constants';
 import axios from 'axios';
+import { Ionicons } from '@expo/vector-icons';
 
 const SuccessIcon = () => (
   <Svg height="100" width="100" viewBox="0 0 24 24">
@@ -103,6 +105,8 @@ const PaymentScreen = ({ route }) => {
         account_number: qrData.accountNumber
       });
 
+      console.log("Response", response.data);
+
       if (response.data.checkout_request_id) {
         setPaymentSuccess(true);
         setModalVisible(true);
@@ -114,12 +118,8 @@ const PaymentScreen = ({ route }) => {
         throw new Error('Failed to initiate payment');
       }
     } catch (error) {
-      setPaymentSuccess(true);
-      setModalVisible(true);
-      Alert.alert(
-        'STK Push Sent',
-        'Please check your phone and enter M-Pesa PIN to complete payment'
-      );
+      console.error('Error making payment:', error);
+      Alert.alert('Error', 'Failed to make payment');
     } finally {
       setLoading(false);
     }
@@ -132,89 +132,89 @@ const PaymentScreen = ({ route }) => {
   const handleCloseModal = () => {
     setModalVisible(false);
     if (paymentSuccess) {
-      navigation.navigate('Scan');
+      navigation.goBack();
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Payment Screen</Text>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Paying to: </Text>
-        <Text style={styles.accountName}>{qrData.accountName}</Text>
-      </View>
+    <KeyboardAvoidingView
+  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  style={styles.container}
+>
+  <StatusBar barStyle="light-content" backgroundColor="#1E1E1E" />
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.innerContainer}>
+          {/* Back Button */}
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
 
-      {showPhoneInput ? (
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Phone Number</Text>
-          <TextInput
-            style={styles.phoneInput}
-            keyboardType="phone-pad"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            placeholder="254XXX..."
-            placeholderTextColor="#666"
-          />
-        </View>
-      ) : (
-        <View style={styles.savedPhoneContainer}>
-          <Text style={styles.savedPhoneText}>Phone Number: {phoneNumber}</Text>
-          <Button
-            title="Change Number"
-            onPress={handleChangeNumber}
-            style={styles.changeNumberButton}
-          />
-        </View>
-      )}
-
-      <View style={styles.amountContainer}>
-        <Text style={styles.amountLabel}>Select Amount</Text>
-        <View style={styles.amountBox}>
-          <Text style={styles.currency}>KES</Text>
-          <TextInput
-            style={styles.amountInput}
-            keyboardType="numeric"
-            value={amount}
-            onChangeText={setAmount}
-          />
-        </View>
-      </View>
-
-      <Button
-        title={loading ? "Processing..." : "Pay"}
-        onPress={handlePayment}
-        style={styles.button}
-        disabled={loading}
-      />
-
-      {loading && (
-        <ActivityIndicator
-          color="#2FC56D"
-          style={styles.loader}
-        />
-      )}
-
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={handleCloseModal}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalView}>
-            {paymentSuccess ? <SuccessIcon /> : <FailureIcon />}
-            <Text style={styles.modalText}>
-              {paymentSuccess ? 'STK Push Sent!' : 'Payment Failed!'}
-            </Text>
-            <Button
-              title="Close"
-              onPress={handleCloseModal}
-              style={styles.closeButton}
-            />
+          {/* Payment Details */}
+          <Text style={styles.title}>Payment Screen</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Paying to:</Text>
+            <Text style={styles.accountName}>{qrData.accountName}</Text>
           </View>
+
+          {/* Phone Number Input */}
+          {showPhoneInput ? (
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Phone Number</Text>
+              <TextInput
+                style={styles.phoneInput}
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder="254XXX..."
+                placeholderTextColor="#666"
+              />
+            </View>
+          ) : (
+            <View style={styles.savedPhoneContainer}>
+              <Text style={styles.savedPhoneText}>Phone Number: {phoneNumber}</Text>
+              <Button title="Change Number" onPress={handleChangeNumber} style={styles.changeNumberButton} />
+            </View>
+          )}
+
+          {/* Amount Input */}
+          <View style={styles.amountContainer}>
+            <Text style={styles.amountLabel}>Select Amount</Text>
+            <View style={styles.amountBox}>
+              <Text style={styles.currency}>KES</Text>
+              <TextInput
+                style={styles.amountInput}
+                keyboardType="numeric"
+                value={amount}
+                onChangeText={setAmount}
+              />
+            </View>
+          </View>
+
+          {/* Pay Button */}
+          <Button
+            title={loading ? "Processing..." : "Pay"}
+            onPress={handlePayment}
+            disabled={loading}
+          />
+
+          {/* Loading Indicator */}
+          {loading && <ActivityIndicator color="#2FC56D" style={styles.loader} />}
+
+          {/* Payment Modal */}
+          <Modal animationType="fade" transparent visible={modalVisible} onRequestClose={handleCloseModal}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalView}>
+                {paymentSuccess ? <SuccessIcon /> : <FailureIcon />}
+                <Text style={styles.modalText}>
+                  {paymentSuccess ? 'STK Push Sent!' : 'Payment Failed!'}
+                </Text>
+                <Button title="Close" onPress={handleCloseModal} />
+              </View>
+            </View>
+          </Modal>
         </View>
-      </Modal>
-    </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -222,6 +222,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1E1E1E',
+    paddingTop: StatusBar.currentHeight + 80, 
     padding: 20,
   },
   title: {

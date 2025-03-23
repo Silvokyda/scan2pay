@@ -8,6 +8,7 @@ import { createContext } from 'react';
 import QRCodeTab from './VendorManagementScreen';
 import Dashboard from './DashBoard';
 import Transactions from './Transactions';
+import WithdrawalScreen from './WithdrawalScreen';
 import { useAuth } from '../utils/Auth';
 
 const APP_VERSION = "1.0.0";
@@ -26,11 +27,7 @@ const VendorDashboard = ({ route }) => {
       case 'transactions':
         return <Transactions />;
       case 'withdrawals':
-        return (
-          <View style={styles.contentContainer}>
-            <Text style={styles.contentTitle}>Withdrawals</Text>
-          </View>
-        );
+        return <WithdrawalScreen />;
       case 'qrcode':
         return <QRCodeTab />;
       default:

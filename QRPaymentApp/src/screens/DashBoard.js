@@ -54,7 +54,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching transactions:', error);
       if (error.response && error.response.status === 401) {
-        setError('Authorization error: Please log in again');
+        handleLogout();
       } else {
         setError('Failed to load transactions');
       }
@@ -135,9 +135,16 @@ const Dashboard = () => {
     await AsyncStorage.clear();
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Login' }],
+      routes: [{ name: 'PublicRoutes' }], 
     });
+  
+    // Ensure navigation happens after reset
+    setTimeout(() => {
+      navigation.navigate('Scan');
+    }, 100);
   };
+  
+  
 
   return (
     <ScrollView style={styles.container}>

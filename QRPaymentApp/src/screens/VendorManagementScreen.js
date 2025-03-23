@@ -120,7 +120,9 @@ const VendorManagementScreen = () => {
     
 
   const handleScanQR = () => {
-    navigation.navigate('Scan');
+    navigation.navigate('PublicRoutes', {
+      screen: 'Scan',
+    });
   };
 
   const handleShareQR = async () => {
@@ -173,7 +175,6 @@ const VendorManagementScreen = () => {
         </View>
       </ViewShot>
       <Button title="Share QR Code" onPress={handleShareQR} style={styles.button} />
-      <Button title="Scan QR Code" onPress={handleScanQR} style={styles.button} />
       <Button title="Pay for Someone" onPress={handlePayForSomeone} style={styles.button} />
     </View>
   );
