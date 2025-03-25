@@ -1,2 +1,2 @@
-export const AppUrl = 'https://de5c-102-219-210-201.ngrok-free.app';
+export const AppUrl = 'https://ffd8-154-159-252-60.ngrok-free.app';
 export const APP_NAME = 'Scan2Pay';

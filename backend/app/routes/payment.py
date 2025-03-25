@@ -17,10 +17,12 @@ def pay():
     business_number = data.get('account_number')
     
     if not amount or not phone_number:
+        print("Amount and phone number are required")
         return jsonify({'error': 'Amount and phone number are required'}), 400
     
     # Look up the vendor by business_number
     vendor = Vendor.query.filter_by(business_number=business_number).first()
+    print("Vendor", vendor)
     if not vendor:
         return jsonify({'error': f'Vendor with business number {business_number} not found'}), 404
         
@@ -56,6 +58,7 @@ def pay():
                 'checkout_request_id': checkout_request_id
             }), 200
         else:
+            print("Failed to initiate payment", stk_push_response)
             return jsonify({
                 'error': 'Failed to initiate payment',
                 'details': stk_push_response
