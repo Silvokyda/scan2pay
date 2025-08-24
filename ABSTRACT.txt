@@ -1,0 +1,7 @@
+Scan2Pay is a mobile-based payment application that leverages QR code technology to facilitate fast, secure, and user-friendly transactions through the Safaricom M-Pesa platform. The core functionality revolves around enabling users to scan a merchant's QR code, which contains a till or paybill number, and automatically initiate a payment using STK Push via the Daraja API. This eliminates the need for manual data entry, reduces errors, and improves the overall user experience during mobile transactions.
+
+The system is divided into two main components: a React Native (Expo) mobile frontend and a Flask (Python) backend. The frontend app integrates with the device camera to scan QR codes and interact with the backend APIs. The backend handles transaction processing, logs payment details, and interacts securely with Safaricom’s API for real-time payment execution. A sample QR code is included to demonstrate the scan-and-pay flow in test environments.
+
+Scan2Pay is designed with scalability and simplicity in mind, targeting small businesses, street vendors, pharmacies, and modern retail setups that require a quick and reliable mobile payment solution. The project also supports future integration with analytics dashboards, user authentication, and transaction tracking features.
+
+By combining modern mobile development technologies with Kenya’s most widely-used mobile payment system, Scan2Pay offers a practical and accessible solution to bridge the gap between merchants and customers in an increasingly cashless economy.
